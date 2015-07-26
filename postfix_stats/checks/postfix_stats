@@ -1,0 +1,125 @@
+#!/usr/bin/python
+# -*- encoding: utf-8; py-indent-offset: 4 -*-
+
+
+# <<<postfix_stats>>>
+# postfix_stats.received 4619
+# postfix_stats.delivered 5523
+# postfix_stats.forwarded 0
+# postfix_stats.deferred 15
+# postfix_stats.bounced 18
+# postfix_stats.rejected 1591
+# postfix_stats.held 0
+# postfix_stats.discarded 0
+# postfix_stats.reject_warnings 0
+# postfix_stats.bytes_received 511569000
+# postfix_stats.bytes_delivered 556000000
+# postfix_stats.senders 627
+# postfix_stats.recipients 268
+
+postfix_stats_levels = (50, 150)
+
+
+def parse_postfix(info):
+    values = {}
+    for line in info:
+        if len(line) == 2:
+            varname, value = line
+            try:
+                value = int(value)
+            except:
+                pass
+        else:
+            varname = line[0]
+            value = None
+
+        values[varname] = value
+    return values
+
+
+def inventory_postfix_stats(info, k):
+    values = parse_postfix(info)
+    if k in values:
+        return [(None, '', "postfix_stats_levels")]
+
+
+def check_postfix_stats(_no_item, params, info, k1, k2):
+    values = parse_postfix(info)
+    if k1 not in values:
+        return (3, "No data emails %s" % k2)
+
+    num = int(values[k1])
+    status = 0
+    status_txt = ''
+    #
+    if not params or len(params) < 2:
+        params = postfix_stats_levels
+    warn, crit = params
+    # perfdata = [(k1, num, warn, crit, 0)]
+    perfdata = [(k2, num)]
+    #
+    if num >= crit:
+        status = 2
+        status_txt = "(Threshold (%d) for number of %s emails)" % (crit, k2)
+    elif num >= warn:
+        status = 1
+        status_txt = "(Threshold (%d) for number of %s emails " % (warn, k2)
+    #
+    # return (state,  infotext, [ ("uptime", uptime_sec) ])
+    return (status, "Emails %s: %d %s" % (k2, num, status_txt), perfdata)
+
+##########################################################
+
+
+def inventoryCreator(k):
+    def func1(info):
+        return inventory_postfix_stats(info, "postfix_stats.%s" % k)
+    func1.__name__ = "inventory_postfix_stats_%s" % k
+    return func1
+
+
+def checkCreator(k):
+    def func2(_no_item, params, info):
+        return check_postfix_stats(_no_item, params, info, "postfix_stats.%s" % k, k)
+    func2.__name__ = "check_postfix_stats_%s" % k
+    return func2
+
+
+for k in ('received', 'delivered', 'forwarded', 'deferred',
+          'bounced', 'rejected', 'held', 'discarded',
+          'reject_warnings', 'senders', 'recipients'):
+
+    check_info["postfix_stats.%s" % k] = {
+       "check_function"          : checkCreator(k),
+       "inventory_function"      : inventoryCreator(k),
+       "service_description"     : "Postfix emails %s" % k,
+       "has_perfdata"            : True,
+       "group"                   : "postfix_stats",
+    }
+    # print k, checkCreator(k)
+    # print k, inventoryCreator(k)
+    pass
+
+#
+# info = (('postfix_stats.received', 4619),
+#         ('postfix_stats.delivered', 5523),
+#         ('postfix_stats.forwarded', 0),
+#         ('postfix_stats.deferred', 15),
+#         ('postfix_stats.bounced', 18),
+#         ('postfix_stats.rejected', 1591),
+#         ('postfix_stats.held', 0),
+#         ('postfix_stats.discarded', 0),
+#         ('postfix_stats.reject_warnings', 0),
+#         ('postfix_stats.bytes_received', 511569000),
+#         ('postfix_stats.bytes_delivered', 556000000),
+#         ('postfix_stats.senders', 627),
+#         ('postfix_stats.recipients', 268),
+# )
+
+# obj = checkCreator('bounced')
+# print obj(None, (20, 500), info)
+
+##########################################################
+
+# postfix_stats.bytes_received 511569000
+# postfix_stats.bytes_delivered 556000000

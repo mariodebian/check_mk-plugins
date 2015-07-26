@@ -1,0 +1,53 @@
+#!/bin/bash
+#
+# need logtail and pflogsumm packages
+#
+#
+MAILLOG=/var/log/mail.log
+DAT1=/dev/postfix-offset.dat
+DAT2=$(mktemp)
+PFLOGSUMM=/usr/sbin/pflogsumm
+[ -e /usr/local/bin/pflogsumm ] && PFLOGSUMM=/usr/local/bin/pflogsumm
+
+
+function zsend {
+  key="postfix_stats.`echo "$1" | tr ' -' '_' | tr '[A-Z]' '[a-z]' | tr -cd [a-z_]`"
+  value=`grep -m 1 "$1" $DAT2 | awk '{print $1}'`
+
+  if echo $value | grep -q "k$"; then
+    value=$(echo $value| sed -e 's/k//g')
+    value=$(($value * 1000))
+  fi
+
+  if echo $value | grep -q "m$"; then
+    value=$(echo $value| sed -e 's/m//g')
+    value=$(($value * 1000000))
+  fi
+
+  echo "${key}" "${value}"
+}
+
+if [ -e /usr/sbin/pflogsumm ]; then
+  /usr/sbin/logtail -f$MAILLOG -o$DAT1 | $PFLOGSUMM -h 0 -u 0 --bounce-detail=0 --deferral-detail=0 --reject-detail=0 --no_no_msg_size --smtpd-warning-detail=0 > $DAT2
+else
+  # old distros
+  /usr/sbin/logtail -f$MAILLOG -o$DAT1 | $PFLOGSUMM -h 0 -u 0 --no_bounce_detail --no_deferral_detail --no_reject_detail --no_no_msg_size --no_smtpd_warnings > $DAT2
+fi
+
+echo "<<<postfix_stats>>>"
+zsend received
+zsend delivered
+zsend forwarded
+zsend deferred
+zsend bounced
+zsend rejected
+zsend held
+zsend discarded
+zsend "reject warnings"
+zsend "bytes received"
+zsend "bytes delivered"
+zsend senders
+zsend recipients
+
+rm $DAT2
+
